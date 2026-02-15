@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Voice Chat Server — fully local voice conversation with Zoe
+ * Voice Chat Server — fully local voice conversation server
  * 
  * Browser → WebSocket (audio) → sherpa-onnx STT → OpenClaw agent → sherpa-onnx TTS → Browser
  * 

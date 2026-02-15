@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zoe — Voice Chat</title>
+  <title>Voice Chat</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -167,7 +167,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>⚡ Zoe</h1>
+    <h1>⚡ Voice Chat</h1>
     <p class="subtitle">Fully local voice chat — <span id="connStatus" class="disconnected">disconnected</span></p>
 
     <div style="margin-bottom: 1rem;">
@@ -367,7 +367,7 @@
         // Dual response: voice + detail
         const detailId = `detail-${Date.now()}`;
         div.innerHTML = `
-          <div class="label">⚡ Zoe</div>
+          <div class="label">⚡ Assistant</div>
           <div class="voice-text">${text}</div>
           <div class="toggle-detail" onclick="toggleDetail('${detailId}')">▼ Show full response</div>
           <div id="${detailId}" class="detail-text" style="display: none;">${detail}</div>
@@ -376,7 +376,7 @@
       } else {
         // Single response (user message or fallback)
         div.innerHTML = `
-          <div class="label">${role === 'user' ? '🎤 You' : '⚡ Zoe'}</div>
+          <div class="label">${role === 'user' ? '🎤 You' : '⚡ Assistant'}</div>
           <div>${text}</div>
           ${latency ? `<div class="latency">${latency}</div>` : ''}
         `;
