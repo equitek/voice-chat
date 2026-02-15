@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zoe — Voice Chat</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: #0a0a0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      max-width: 480px;
+      width: 100%;
+      padding: 2rem;
+      text-align: center;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; color: #fff; }
+    .subtitle { font-size: 0.85rem; color: #888; margin-bottom: 2rem; }
+    .btn-row {
+      display: flex;
+      gap: 1.5rem;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+    #talkBtn {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      border: 3px solid #333;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-user-select: none;
+      flex-shrink: 0;
+    }
+    #talkBtn:hover { border-color: #4a9eff; }
+    #talkBtn.recording {
+      border-color: #ff4444;
+      background: #2a1a1a;
+      animation: pulse 1.5s infinite;
+    }
+    #talkBtn.has-chunks {
+      border-color: #4a9eff;
+      background: #1a1a3e;
+    }
+    #talkBtn.processing {
+      border-color: #ffaa00;
+      background: #2a2a1a;
+    }
+    #talkBtn.speaking {
+      border-color: #44ff44;
+      background: #1a2a1a;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,68,68,0.4); }
+      50% { box-shadow: 0 0 0 15px rgba(255,68,68,0); }
+    }
+    #sendBtn {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      border: 3px solid #333;
+      background: #1a1a2e;
+      color: #555;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-user-select: none;
+      flex-shrink: 0;
+    }
+    #sendBtn.ready {
+      border-color: #4a9eff;
+      background: #1a2a4a;
+      color: #4a9eff;
+    }
+    #sendBtn.ready:hover { background: #2a3a5a; }
+    #sendBtn:disabled { opacity: 0.4; cursor: default; }
+    #status {
+      font-size: 0.9rem;
+      color: #888;
+      margin-bottom: 0.5rem;
+      min-height: 1.5em;
+    }
+    #chunkCount {
+      font-size: 0.75rem;
+      color: #666;
+      margin-bottom: 1rem;
+      min-height: 1.2em;
+    }
+    .transcript-area {
+      text-align: left;
+      max-height: 400px;
+      overflow-y: auto;
+      padding: 1rem;
+      background: #111118;
+      border-radius: 12px;
+      border: 1px solid #222;
+    }
+    .msg {
+      margin-bottom: 1rem;
+      padding: 0.75rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+    .msg.user { background: #1a2a3a; border-left: 3px solid #4a9eff; }
+    .msg.assistant { background: #1a2a1a; border-left: 3px solid #44bb44; }
+    .msg .label { font-size: 0.75rem; color: #888; margin-bottom: 0.25rem; }
+    .msg .latency { font-size: 0.7rem; color: #666; margin-top: 0.25rem; }
+    .msg .voice-text { 
+      font-weight: 500; 
+      margin-bottom: 0.5rem;
+    }
+    .msg .detail-text { 
+      color: #bbb; 
+      font-size: 0.85rem; 
+      padding-top: 0.5rem; 
+      border-top: 1px solid #333;
+      white-space: pre-wrap;
+    }
+    .msg .toggle-detail {
+      color: #666;
+      font-size: 0.7rem;
+      cursor: pointer;
+      margin-top: 0.25rem;
+      text-decoration: underline;
+    }
+    .msg .toggle-detail:hover { color: #888; }
+    .connected { color: #44bb44; }
+    .disconnected { color: #ff4444; }
+    .bottom-bar {
+      margin-top: 1rem;
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+    .small-btn {
+      background: #1a1a2e;
+      color: #888;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 0.4rem 0.8rem;
+      cursor: pointer;
+      font-size: 0.75rem;
+    }
+    .small-btn:hover { border-color: #555; color: #bbb; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>⚡ Zoe</h1>
+    <p class="subtitle">Fully local voice chat — <span id="connStatus" class="disconnected">disconnected</span></p>
+
+    <div style="margin-bottom: 1rem;">
+      <select id="micSelect" style="background: #1a1a2e; color: #e0e0e0; border: 1px solid #333; border-radius: 6px; padding: 0.5rem; width: 100%; font-size: 0.85rem;">
+        <option value="">Loading microphones...</option>
+      </select>
+    </div>
+
+    <div class="btn-row">
+      <button id="talkBtn">Hold to<br>Talk</button>
+      <button id="sendBtn" disabled>Send</button>
+    </div>
+    <div id="status">Connecting...</div>
+    <div id="chunkCount"></div>
+
+    <div class="transcript-area" id="transcripts"></div>
+
+    <div class="bottom-bar">
+      <button class="small-btn" id="undoBtn">↩ Undo</button>
+      <button class="small-btn" id="clearBtn">🗑 Clear</button>
+      <button class="small-btn" id="testAudioBtn">🔊 Test</button>
+    </div>
+  </div>
+
+  <script>
+    const btn = document.getElementById('talkBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    const statusEl = document.getElementById('status');
+    const chunkCountEl = document.getElementById('chunkCount');
+    const connStatus = document.getElementById('connStatus');
+    const transcripts = document.getElementById('transcripts');
+    const micSelect = document.getElementById('micSelect');
+
+    let ws = null;
+    let mediaRecorder = null;
+    let isRecording = false;
+    let audioContext = null;
+    let pendingAudioUrl = null;
+    let activeStream = null;
+
+    // Collected audio clips across multiple hold-to-talk presses
+    let collectedChunks = [];
+    let collectedMimeType = '';
+    let totalBytes = 0;
+
+    // Pre-warmed Audio element for iOS playback
+    const prewarmedAudio = new Audio();
+    const silentWav = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
+
+    function ensureAudioContext() {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioContext.state === 'suspended') audioContext.resume();
+      return audioContext;
+    }
+
+    function primeAudio() {
+      prewarmedAudio.src = silentWav;
+      prewarmedAudio.play().catch(() => {});
+      ensureAudioContext();
+    }
+
+    function updateUI() {
+      const n = collectedChunks.length;
+      if (n === 0) {
+        chunkCountEl.textContent = '';
+        sendBtn.disabled = true;
+        sendBtn.className = '';
+        if (!isRecording) btn.className = '';
+      } else {
+        const kb = (totalBytes / 1024).toFixed(0);
+        chunkCountEl.textContent = `${n} clip${n > 1 ? 's' : ''} (${kb}KB)`;
+        sendBtn.disabled = false;
+        sendBtn.className = 'ready';
+        if (!isRecording) btn.className = 'has-chunks';
+      }
+    }
+
+    function clearAll() {
+      collectedChunks = [];
+      totalBytes = 0;
+      collectedMimeType = '';
+      releaseStream();
+      updateUI();
+      statusEl.textContent = 'Cleared — hold button to talk';
+    }
+
+    function undoLast() {
+      if (collectedChunks.length === 0) return;
+      const removed = collectedChunks.pop();
+      totalBytes -= removed.size;
+      updateUI();
+      statusEl.textContent = collectedChunks.length > 0
+        ? `Removed last clip — ${collectedChunks.length} remaining`
+        : 'All clips removed';
+      if (collectedChunks.length === 0) {
+        collectedMimeType = '';
+        releaseStream();
+      }
+    }
+
+    async function getStream() {
+      if (activeStream && activeStream.getTracks().some(t => t.readyState === 'live')) {
+        return activeStream;
+      }
+      const constraints = {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      };
+      if (micSelect.value) constraints.deviceId = { exact: micSelect.value };
+      activeStream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
+      return activeStream;
+    }
+
+    function releaseStream() {
+      if (activeStream) {
+        activeStream.getTracks().forEach(t => t.stop());
+        activeStream = null;
+      }
+    }
+
+    // --- WebSocket ---
+
+    function connect() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsPath = location.pathname.replace(/\/+$/, '') || '/voice';
+      ws = new WebSocket(`${proto}//${location.host}${wsPath}`);
+      ws.binaryType = 'arraybuffer';
+
+      ws.onopen = () => {
+        connStatus.textContent = 'connected';
+        connStatus.className = 'connected';
+        statusEl.textContent = 'Ready — hold button to talk';
+      };
+
+      ws.onclose = () => {
+        connStatus.textContent = 'disconnected';
+        connStatus.className = 'disconnected';
+        statusEl.textContent = 'Disconnected. Reconnecting...';
+        setTimeout(connect, 2000);
+      };
+
+      ws.onerror = () => { statusEl.textContent = 'Connection error'; };
+
+      ws.onmessage = async (event) => {
+        if (event.data instanceof ArrayBuffer) {
+          const bytes = event.data.byteLength;
+          btn.className = 'speaking';
+          btn.innerHTML = '🔊';
+          sendBtn.disabled = true;
+          sendBtn.className = '';
+          statusEl.textContent = `Speaking... (${(bytes / 1024).toFixed(0)}KB)`;
+          try {
+            await playAudio(event.data);
+          } catch (e) {
+            console.error('[voice] Playback error:', e);
+            statusEl.textContent = `Audio error: ${e.message}`;
+          }
+          btn.innerHTML = 'Hold to<br>Talk';
+          statusEl.textContent = 'Ready — hold button to talk';
+          updateUI();
+          return;
+        }
+
+        const msg = JSON.parse(event.data);
+        switch (msg.type) {
+          case 'status':
+            statusEl.textContent = msg.text;
+            break;
+          case 'transcript':
+            addMessage('user', msg.text, null, msg.latencyMs ? `STT: ${msg.latencyMs}ms` : '');
+            break;
+          case 'response':
+            if (msg.voice && msg.detail) {
+              addMessage('assistant', msg.voice, msg.detail, msg.latencyMs ? `Agent: ${msg.latencyMs}ms` : '');
+            } else {
+              // Backwards compatibility
+              addMessage('assistant', msg.text, null, msg.latencyMs ? `Agent: ${msg.latencyMs}ms` : '');
+            }
+            break;
+          case 'error':
+            statusEl.textContent = `Error: ${msg.text}`;
+            btn.innerHTML = 'Hold to<br>Talk';
+            updateUI();
+            break;
+        }
+      };
+    }
+
+    function addMessage(role, text, detail, latency) {
+      const div = document.createElement('div');
+      div.className = `msg ${role}`;
+      
+      if (role === 'assistant' && detail && detail !== text) {
+        // Dual response: voice + detail
+        const detailId = `detail-${Date.now()}`;
+        div.innerHTML = `
+          <div class="label">⚡ Zoe</div>
+          <div class="voice-text">${text}</div>
+          <div class="toggle-detail" onclick="toggleDetail('${detailId}')">▼ Show full response</div>
+          <div id="${detailId}" class="detail-text" style="display: none;">${detail}</div>
+          ${latency ? `<div class="latency">${latency}</div>` : ''}
+        `;
+      } else {
+        // Single response (user message or fallback)
+        div.innerHTML = `
+          <div class="label">${role === 'user' ? '🎤 You' : '⚡ Zoe'}</div>
+          <div>${text}</div>
+          ${latency ? `<div class="latency">${latency}</div>` : ''}
+        `;
+      }
+      
+      transcripts.appendChild(div);
+      transcripts.scrollTop = transcripts.scrollHeight;
+    }
+
+    function toggleDetail(detailId) {
+      const detailEl = document.getElementById(detailId);
+      const toggleEl = detailEl.previousElementSibling;
+      
+      if (detailEl.style.display === 'none') {
+        detailEl.style.display = 'block';
+        toggleEl.textContent = '▲ Hide full response';
+      } else {
+        detailEl.style.display = 'none';
+        toggleEl.textContent = '▼ Show full response';
+      }
+    }
+
+    // --- Audio Playback ---
+
+    async function playAudio(arrayBuffer) {
+      const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
+      const url = URL.createObjectURL(blob);
+      if (pendingAudioUrl) URL.revokeObjectURL(pendingAudioUrl);
+      pendingAudioUrl = url;
+
+      prewarmedAudio.src = url;
+      return new Promise((resolve, reject) => {
+        prewarmedAudio.onended = () => {
+          URL.revokeObjectURL(url);
+          pendingAudioUrl = null;
+          resolve();
+        };
+        prewarmedAudio.onerror = (e) => {
+          URL.revokeObjectURL(url);
+          pendingAudioUrl = null;
+          reject(e);
+        };
+        prewarmedAudio.play().catch((e) => {
+          console.error('[voice] play() rejected, trying AudioContext:', e);
+          const ctx = ensureAudioContext();
+          ctx.decodeAudioData(arrayBuffer.slice(0)).then(buf => {
+            const src = ctx.createBufferSource();
+            src.buffer = buf;
+            src.connect(ctx.destination);
+            src.onended = resolve;
+            src.start(0);
+          }).catch(reject);
+        });
+      });
+    }
+
+    // --- Recording ---
+
+    async function startRecording() {
+      if (isRecording) return;
+      isRecording = true;
+
+      try {
+        const stream = await getStream();
+
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/webm')
+            ? 'audio/webm'
+            : 'audio/mp4';
+
+        if (!collectedMimeType) collectedMimeType = mimeType;
+
+        mediaRecorder = new MediaRecorder(stream, { mimeType });
+        const chunks = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(chunks, { type: mimeType });
+          if (blob.size < 500) {
+            statusEl.textContent = collectedChunks.length > 0
+              ? `${collectedChunks.length} clip(s) — hold to add more, or Send`
+              : 'Too short — hold longer';
+            updateUI();
+            return;
+          }
+
+          collectedChunks.push(blob);
+          totalBytes += blob.size;
+          updateUI();
+          statusEl.textContent = `Clip ${collectedChunks.length} recorded — hold to add more, or Send ➤`;
+        };
+
+        mediaRecorder.start(100);
+        btn.className = 'recording';
+        btn.innerHTML = '🎤';
+        statusEl.textContent = 'Listening...';
+      } catch (err) {
+        console.error('Mic error:', err);
+        statusEl.textContent = `Mic error: ${err.message}`;
+        isRecording = false;
+      }
+    }
+
+    function stopRecording() {
+      if (!isRecording) return;
+      isRecording = false;
+      btn.innerHTML = 'Hold to<br>Talk';
+
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+    }
+
+    // --- Send ---
+
+    async function sendAll() {
+      if (collectedChunks.length === 0) return;
+
+      primeAudio();
+
+      const merged = new Blob(collectedChunks, { type: collectedMimeType });
+      const n = collectedChunks.length;
+      const size = totalBytes;
+
+      // Reset
+      collectedChunks = [];
+      totalBytes = 0;
+      collectedMimeType = '';
+      releaseStream();
+      updateUI();
+
+      btn.className = 'processing';
+      btn.innerHTML = '⏳';
+      sendBtn.disabled = true;
+      sendBtn.className = '';
+      statusEl.textContent = `Sending ${n} clip${n > 1 ? 's' : ''} (${(size / 1024).toFixed(0)}KB)...`;
+
+      const buffer = await merged.arrayBuffer();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(buffer);
+      } else {
+        statusEl.textContent = 'Not connected';
+        btn.innerHTML = 'Hold to<br>Talk';
+        btn.className = '';
+      }
+    }
+
+    // --- Event Listeners ---
+
+    btn.addEventListener('mousedown', (e) => { e.preventDefault(); primeAudio(); startRecording(); });
+    btn.addEventListener('mouseup', (e) => { e.preventDefault(); stopRecording(); });
+    btn.addEventListener('mouseleave', (e) => { if (isRecording) stopRecording(); });
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); primeAudio(); startRecording(); });
+    btn.addEventListener('touchend', (e) => { e.preventDefault(); stopRecording(); });
+
+    sendBtn.addEventListener('click', (e) => { e.preventDefault(); sendAll(); });
+    sendBtn.addEventListener('touchend', (e) => { e.preventDefault(); sendAll(); });
+
+    document.getElementById('undoBtn').addEventListener('click', undoLast);
+    document.getElementById('clearBtn').addEventListener('click', clearAll);
+
+    document.getElementById('testAudioBtn').addEventListener('click', () => {
+      const ctx = ensureAudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 440;
+      gain.gain.value = 0.3;
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+      statusEl.textContent = 'Test beep played';
+    });
+
+    // Mic enumeration
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+      stream.getTracks().forEach(t => t.stop());
+      return navigator.mediaDevices.enumerateDevices();
+    }).then(devices => {
+      const mics = devices.filter(d => d.kind === 'audioinput');
+      micSelect.innerHTML = '';
+      mics.forEach((mic, i) => {
+        const opt = document.createElement('option');
+        opt.value = mic.deviceId;
+        opt.textContent = mic.label || `Microphone ${i + 1}`;
+        micSelect.appendChild(opt);
+      });
+      statusEl.textContent = `Ready — ${mics.length} mic(s). Hold to talk, Send when ready`;
+    }).catch(err => {
+      statusEl.textContent = `Mic access denied: ${err.message}`;
+    });
+
+    connect();
+  </script>
+</body>
+</html>
